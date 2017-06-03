@@ -28,6 +28,36 @@ def descargar_imagen(obj_id, comunidad, url):
 ### UTILES
 ######
 de_clase = lambda tag, clase: 'class' in tag.attrs and clase in tag.attrs['class']
+
+from datetime import timedelta
+from datetime import datetime
+
+def obtener_fecha(date_str):
+    date = date_str.split(',')
+    delta = timedelta(hours=0, minutes=0)
+    today = datetime.now().replace(microsecond=0,second=0)
+    if len(date) > 1:
+        day = date[0].strip()
+        if day == 'Hoy':
+            day = today.replace(hour=0,minute=0)
+        elif day is 'Ayer':
+            day = today.replace(hour=0,minute=0) - timedelta(days=1)
+        
+        delta = datetime.strptime(date[1].strip(), '%H:%M')
+        delta = timedelta(hours=delta.hour,minutes=delta.minute)
+    else:
+        date = date_str.split(' ')
+        day = int(date[0])
+
+        month = {'Jun':6,'Mayo': 5, 'Abr': 4, 'Mar': 3, 'Feb': 2, 'Ene': 1, 'Dic': 12, 'Nov': 11, 'Oct': 10, 'Sep': 9, 'Ago': 8, 'Jul': 7}[date[1].strip()]
+
+        year = today.year
+        if month < today.month:
+            year -= 1
+        day = datetime(year, month, day)
+
+    return day + delta
+
 sopa = lambda url: BeautifulSoup(requests.get(url).text, 'html.parser') 
 #########
 #### LISTADO
@@ -52,15 +82,14 @@ def obtener_item(item_class):
     price_type = next(price, None)
     price_type = price_type.text.strip() if price_type is not None else None
     date = next(paragraphs).text.strip()
-    
     return {
         'title': item_ref.get('title'),
-        'href': "http" + item_ref.get('href'),
+        'href': "http:" + item_ref.get('href'),
         'thumbnail': item_ref.find('img').get('src'),
         'optionals': optionals,
         'price_tag': price_tag,
         'price_type': price_type,
-        'date': date
+        'date': obtener_fecha(date)
     }
     
 def guardar_item(item_ref):
