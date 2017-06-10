@@ -6,6 +6,7 @@ import os
 ### MONGO
 ######
 from pymongo import MongoClient
+from pymongo.helpers import DuplicateKeyError
 client = MongoClient('localhost', 27017)
 db = client.olx
 db_items = db.items
@@ -15,9 +16,9 @@ db_items = db.items
 ########
 import urllib
 def descargar_imagen(obj_id, comunidad, url):   
-    print 'Descargando imagen ', obj_id, comunidad, url
+    #print 'Descargando imagen ', obj_id, comunidad, url
     dname = "fotos/"+comunidad+"/"+str(obj_id)
-    print dname
+    #print dname
     if not os.path.exists(dname):
         os.makedirs(dname)
     f = open(dname + "/" + url.split('/')[-1],'wb')
@@ -92,62 +93,52 @@ def obtener_item(item_class):
         'date': obtener_fecha(date)
     }
     
-def guardar_item(item_ref):
-    # 2. Item post
-    casa = sopa("http:" + href)
-    main = casa.find('main')
-    
-    # Encontrar fotos
-    [_,fotos,_] = main.find_all('nav')
-    fotos = filter(lambda href: href.endswith('.jpg'), map(lambda a: a.get('href'), fotos.find_all('a')))    
-    
-    # detalles del post
+def descargar_item(item):
+    page = sopa(item['href'])
+    main = page.find('main')    
+    fotos = main.find_all('nav')[1]        
+
     article = main.find('article')
     divs = article.find_all('div')
-    detalles = filter(lambda d: de_clase(d,'details'),divs)[0]
-
-    titulo = article.find('h1').text.strip()
-    fecha = article.find('time').text
-    lugar = detalles.find('span').text
-    precio = detalles.find('strong').text
-
-    # opcionales del post
+    detalles = filter(lambda d: de_clase(d,'details'),divs)[0]    
     opcionales = filter(lambda u: de_clase(u, 'item_partials_optionals_view'), article.find_all('ul'))[0]
-    opcionales = dict(map(lambda li: (li.find('strong').text, li.find('span').text), opcionales.find_all('li')))
-
-    # descripcion del post
     desc = filter(lambda u: de_clase(u, 'item_partials_description_view'), article.find_all('p'))[0]    
-    desc = desc.text
-
-    # localidad
-    mapa = filter(lambda f:de_clase(f, 'map'), article.find_all('div'))[0]
-
-    [lati, longi] = mapa.find('a').get('href').split('/')[-1].split(',')
-
-    print 'Guardando ... ',
     
-    doc = {
-        'titulo': titulo,
-        'fecha': fecha,
-        'lugar': lugar,
-        'precio': precio,
-        'opcionales': opcionales,
-        'desc': desc,
-        'mapa': {'lati': lati, 'longi': longi}
-    }
+    mapa = filter(lambda f:de_clase(f, 'map'), article.find_all('div'))[0]
+    [lati, longi] = mapa.find('a').get('href').split('/')[-1].split(',')
+    
+    item['fotos'] = filter(lambda href: href.endswith('.jpg'), map(lambda a: a.get('href'), fotos.find_all('a')))
+    item['town'] = detalles.find('span').text        
+    item['properties'] = dict(map(lambda li: (li.find('strong').text, li.find('span').text), opcionales.find_all('li')))
+    item['desc'] = desc.text
+    item['latitude'] = lati
+    item['longitude'] = longi
+    return item
 
-    print doc['titulo'], 
+def sha256(s):
+    import hashlib, binascii
+    dk = hashlib.pbkdf2_hmac('sha256', s, b'OLX', 100000)
+    return binascii.hexlify(dk)
+    
+def guardar_item(item):
+    item_hash = sha256(str(item))
+    item['item_hash'] = item_hash
+    print 'Guardando ... ', item_hash 
+    
+    try:
+        doc_id = db_items.insert_one(item).inserted_id
+    
+        # descargar fotos ...
+        for foto_url in item['fotos']:
+            comunidad = item['href'].split('.')[0]
+            descargar_imagen(doc_id, comunidad, foto_url)
+    
+        return doc_id
+    except DuplicateKeyError:
+        return None
 
-    doc_id = db_items.insert_one(doc).inserted_id
-
-    print doc_id
-
-    # descargar fotos ...
-    for foto_url in fotos:
-        comunidad = href.split('.')[0]        
-        descargar_imagen(doc_id, comunidad, foto_url)
-    return doc
-
+#def guardar_comunidad_desde_pagina(comunidad, pagina):
+    
 #item_refs = pagina_items(sopa(url))
 
 #guardar_item(item_refs[0])
