@@ -9,7 +9,8 @@ import sys
 import pymongo
 from pymongo import MongoClient
 from pymongo.helpers import DuplicateKeyError
-client = MongoClient('localhost', 27017)
+#client = MongoClient('localhost', 27017)
+client = MongoClient('kummer', 27827)
 db = client.olx
 db_items = db.en_alqulier
 
@@ -269,14 +270,19 @@ def actualizar_items(comunidad = "ciudaddeguatemala", categoria = "piso-casa-en-
 def to_row(item):
     date = item['date'].strftime('%Y/%m/%d %H:%M')
     title = item['title'].replace(',','.')
-    href = item['href']
-    lat = item['latitude']
-    lon = item['longitude']
-    bathrooms = item['optionals'].get('bathrooms','')
-    bedrooms = item['optionals'].get('bedrooms','')
-    surface = item['optionals'].get('surface','')
-    price = item['price_tag']
-    return ','.join([date, title, href, lat, lon, bathrooms, bedrooms, surface, price])
+    href = item.get('href','')
+    lat = item.get('latitude','')
+    lon = item.get('longitude','')
+    optionals = item.get('optionals',{})
+    bathrooms = optionals.get('bathrooms','')
+    bedrooms = optionals.get('bedrooms','')
+    surface = optionals.get('surface','')
+    price_usd = item.get('price_usd','')
+    price_gtq = item.get('price_gtq','')
+    zone = item.get('zone','')
+    cs = [date, zone, price_usd, price_gtq, surface, , bathrooms, bedrooms, title, href, lat, lon]
+    _str = lambda x: str(x) if x else ''
+    return ','.join(map(_str,cs))
 
 
 #def guardar_comunidad_desde_pagina(comunidad, pagina):
